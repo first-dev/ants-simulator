@@ -6,6 +6,7 @@
   <title>Ants Simulation</title>
   <link rel="stylesheet" href="w3.css" />
   <link href="style.css" rel="stylesheet" />
+  <script src="ui_control.js" type="text/javascript"></script>
   <script src="app.js" type="text/javascript"></script>
 </head>
 
@@ -26,19 +27,19 @@
       <div class="controls">
         <div class="playback">
           <div class="reset-button">
-            <button class="w3-button w3-circle">
-              <img src="img/stop.svg" alt="Reset" class="playback-buttons">
+            <button class="w3-button w3-circle" onclick="playback(this)" data-action="stop">
+              <img src="img/stop.svg" alt="Stop" class="playback-buttons">
             </button>
           </div>
           <div class="playback-buttons">
-            <button class="w3-button w3-circle">
-              <img src="img/rewind.svg" alt="Reset" class="playback-buttons">
+            <button class="w3-button w3-circle" onclick="playback(this)" data-action="rewind">
+              <img src="img/rewind.svg" alt="Rewind" class="playback-buttons">
             </button>
-            <button class="w3-button w3-circle">
-              <img src="img/pause.svg" alt="Reset" class="playback-buttons">
+            <button class="w3-button w3-circle" onclick="playback(this)" data-action="play">
+              <img src="img/play.svg" alt="Play" class="playback-buttons">
             </button>
-            <button class="w3-button w3-circle">
-              <img src="img/fast-forward.svg" alt="Reset" class="playback-buttons">
+            <button class="w3-button w3-circle" onclick="playback(this)" data-action="forward">
+              <img src="img/forward.svg" alt="Forward" class="playback-buttons">
             </button>
           </div>
         </div>
@@ -47,13 +48,13 @@
             <div class="slider-title">
               Simulation speed:
             </div>
-            <input type="range" min="1" max="100" value="50" class="slider" id="speedSlider">
+            <input type="range" min="1" max="100" value="50" class="slider" data-action="simulation_speed" oninput="slider(this)">
           </div>
           <div>
             <div class="slider-title">
               Ants number:
             </div>
-            <input type="range" min="1" max="100" value="50" class="slider" id="antsSlider">
+            <input type="range" min="1" max="100" value="50" class="slider" data-action="ants_number" oninput="slider(this)">
           </div>
         </div>
       </div>
