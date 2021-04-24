@@ -4,7 +4,7 @@ function playback(element) {
   let playPauseElem = document.querySelector("body > div > div.controls-container > div.controls > div.playback > div.playback-buttons > button:nth-child(2)");
   let playPauseImag = playPauseElem.childNodes[1];
   let actionComplete = simulationControl(action, 0);
-  if(!actionComplete) return;//if action wasn't successful exit the function
+  if (!actionComplete) return; //if action wasn't successful exit the function
   //else update UI
   switch (action) {
     case "stop":
@@ -18,7 +18,7 @@ function playback(element) {
       img.style.height = "20px";
 
       //change button to play if it is pause (stop the simulation)
-      if(playPauseElem.dataset.action=="pause"){
+      if (playPauseElem.dataset.action == "pause") {
         playPauseElem.dataset.action = "play";
         playPauseImag.alt = "Play";
         playPauseImag.src = "img/play.svg";
@@ -34,7 +34,7 @@ function playback(element) {
       img.style = "";
 
       //change button to play if it is pause (stop the simulation)
-      if(playPauseElem.dataset.action=="pause"){
+      if (playPauseElem.dataset.action == "pause") {
         playPauseElem.dataset.action = "play";
         playPauseImag.alt = "Play";
         playPauseImag.src = "img/play.svg";
@@ -62,12 +62,21 @@ function playback(element) {
 
   }
 }
+
 function slider(element) {
   const action = element.dataset.action;
   const value = element.value;
   simulationControl(action, value)
 }
-function simulationControl(action, value){
 
+function simulationControl(action, value) {
+    // generate a colony, food source and a 1000 ant
+    let canvas = document.querySelector("#canvas");
+    let conf = new Configuration(null, null, 1000, 100, [100, 100], 20,  [canvas.offsetWidth - 20, canvas.offsetHeight - 20], [10, 10], null);
+    let simu = new Simulation(conf, null, null);
+    let graph = new Graphics(canvas);
+    simu.generateAnts();
+    graph.getCanvasReady();
+    graph.render(simu);
   return true;
 }
