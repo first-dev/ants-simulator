@@ -20,6 +20,7 @@ body {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .controls-container {
@@ -38,13 +39,14 @@ body {
 
 .screen-container {
   flex-grow: 1;
-  display: flex;
   flex-direction: column;
+  line-height: 0;
 }
 
 .screen {
-  background-color: #25221A;
-  flex-grow: 1;
+  background-color: #0c0901;
+  width: 100%;
+  height: 100%;
 }
 
 .controls {
