@@ -44,9 +44,22 @@ body {
 }
 
 .screen {
-  background-color: #0c0901;
   width: 100%;
   height: 100%;
+  background-color: #0c0901;
+}
+
+.statistics {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  color: gray;
+  font-size: 14px;
+}
+
+.antsCount {
+  float: left;
+  margin-left: 60px;
 }
 
 .controls {

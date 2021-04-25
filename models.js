@@ -22,9 +22,9 @@ class Ant {
     this.stamina = stamina;
   }
   toggleType() {
-    if (this.type == TYPE_HOME_ANT) {
+    if (this.type === TYPE_HOME_ANT) {
       this.type = TYPE_FOOD_ANT;
-    } else if (this.type == TYPE_FOOD_ANT) {
+    } else if (this.type === TYPE_FOOD_ANT) {
       this.type = TYPE_HOME_ANT;
     }
   }
@@ -37,20 +37,19 @@ class Simulation {
     this.time = time;
     this.ants = [];
   }
-  generateAnts() {
-    for (var i = 0; i < this.config.antsNumber; i++) {
-      let xPos = this.config.colonyPosition[0];
-      let yPos = this.config.colonyPosition[1];
-      yPos += i * this.config.antSize[1];
-      let angle = randomAngle();
-      this.ants.push(new Ant(TYPE_HOME_ANT, randomPosiiton(this.config, angle), this.config.antFullStamina, angle));
+  generateAnts(toGenerate) {
+    for (let i = 0; i < toGenerate; i++) {
+      this.ants.push(this.generateRandomAnt());
     }
-
+    this.config.antsNumber = this.ants.length;
+  }
+  generateRandomAnt() {
+    let angle = randomAngle();
+    let newAnt = new Ant(TYPE_HOME_ANT, randomPosition(this.config, angle), this.config.antFullStamina, angle);
     function randomAngle() {
       return Math.random() * 360;
     }
-
-    function randomPosiiton(config, randAngle) { // generate a random position inside the colony (circle)
+    function randomPosition(config, randAngle) { // generate a random position inside the colony (circle)
       // we take sqrt of the random number to make sure the positions are spread more evenly across the circle
       let r = Math.sqrt(Math.random()) * config.colonyRadius;
       // we orient the ant based on its positions to make sure it's facing the outside
@@ -60,11 +59,76 @@ class Simulation {
       let y = config.colonyPosition[1] + Math.sin(theta * Math.PI / 180) * r;
       return [x, y];
     }
+    return newAnt;
   }
-  step() {
+  step(step) {
+    let ant = null;
+    // let step = 2;
+    let xPos = null;
+    let yPos = null;
+    let angle = null;
+    for (let i = 0; i < this.config.antsNumber; i++) {
+      ant = this.ants[i];
+      xPos = ant.position[0];
+      yPos = ant.position[1];
+      // we substrate 90 degrees because the canvas 0 angle is correspond to the Euclidean 90 degrees
+      // (canvas angles start from the top)
+      angle = ant.angle - 90;
+      // then we calculate the projection of the step on X an Y axes
+      xPos += step * Math.cos((angle) * Math.PI / 180);
+      yPos += step * Math.sin((angle) * Math.PI / 180);
 
-    return false;
+      // check if the new X position is inside the terrain
+      if (!isXInsideTerrain(xPos)){
+        // if reflect the angle and calculate the X position again
+        // the part +360) % 360 is to make sure the angle is between 0 and 360 (360 modulo)
+        ant.angle = ((-ant.angle)+360) % 360;
+        angle = ant.angle - 90;
+        xPos = ant.position[0];
+        xPos += step * Math.cos((angle) * Math.PI / 180);
+      }
+      // same for the Y position
+      if (!isYInsideTerrain(yPos)) {
+        ant.angle = ((180-ant.angle)+360) % 360;
+        angle = ant.angle - 90;
+        yPos = ant.position[1];
+        yPos += step * Math.sin((angle) * Math.PI / 180);
+      }
+
+      // apply the new position
+      ant.position = [xPos, yPos];
+    }
+
+    function isXInsideTerrain(x) {
+      let canvas = document.querySelector("#canvas");
+      if (x>0 && x<canvas.offsetWidth){
+        return true;
+      } else {
+        return false;
+      }
+      return null;
+    }
+    function isYInsideTerrain(y) {
+      let canvas = document.querySelector("#canvas");
+      if (y>0 && y<canvas.offsetHeight){
+        return true;
+      } else {
+        return false;
+      }
+      return null;
+    }
+    return true;
   }
+  deleteRandomAnts(toDelete) {
+    let ants = this.ants;
+    let randomIndex;
+    for (let i = 0; i < toDelete; i++) {
+      randomIndex = Math.floor(Math.random() * this.config.antsNumber);
+      ants.splice(randomIndex, 1);
+      this.config.antsNumber--;
+    }
+  }
+
   toJson() {
 
     return "";
@@ -72,9 +136,12 @@ class Simulation {
 }
 // Simulation configuration
 class Configuration {
+  // TODO: remove timeStep parameter
+  // TODO: add multi foods and colony support
   constructor(timeScale, timeStep, antsNumber, colonyRadius, colonyPosition, foodRadius, foodPosition, antSize, antSpeed) {
     if (timeScale === undefined && timeStep === undefined && antsNumber === undefined && colonyPosition === undefined &&
       foodPosition === undefined && antSpeed === undefined) {
+      // TODO: add canvas to Configuration parameters
       let canvas = document.querySelector("#canvas");
       // TODO: declare official default values
       timeScale = null;
