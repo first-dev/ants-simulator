@@ -1,7 +1,8 @@
 let canvas;
-let conf;
-let simu;
-let graph;
+let configurations;
+let simulation;
+let settings;
+let graphics;
 let simulationSpeed;
 let antsNumber;
 let timeScale;
@@ -9,7 +10,6 @@ let startingTime;
 let endingTime;
 let fpsCount;
 let antsCount;
-let fps;
 let requestAnimationId;
 let intervalId;
 let initialized = false;
@@ -86,26 +86,26 @@ function slider(element) {
   simulationControl(action, value)
 }
 function simulationControl(action, value) {
-  // TODO : add return
+  // TODO : return true is action was successful
   value = parseInt(value);
-  fpsCount = document.getElementById("fpsCount");
-  antsCount = document.getElementById("antsCount");
-  fps = 50;
+  fpsCount = document.querySelector("#fpsCount");
+  antsCount = document.querySelector("#antsCount");
 
-
-  // we use cycles to update the fps counter every 30
-  let cycles = 0;
+  // update the fps counter every 1 second
+  let lastFpsUpdate = new Date().getTime();
   startingTime = new Date().getTime();
   function animate() {
     endingTime = new Date().getTime();
-    if (cycles % 30 === 0) {
+    if (new Date().getTime() - lastFpsUpdate > 1000) {
       let fpsCountValue = Math.floor(1000/(endingTime-startingTime));
       fpsCount.innerText = ""+fpsCountValue;
+      lastFpsUpdate = new Date().getTime();
     }
-    cycles++;
     startingTime = new Date().getTime();
-    antsCount.innerText = ""+simu.config.antsNumber;
-    graph.render(simu);
+    antsCount.innerText = ""+simulation.config.antsNumber;
+
+    graphics.render(simulation);
+
     if(continueAnimating)
       requestAnimationFrame(animate);
   }
@@ -121,18 +121,20 @@ function simulationControl(action, value) {
         initialize();
       }
 
-      // make steps at a speed based on the simulation configuration
+      // cycles per second
       intervalId = setInterval(function () {
-        simu.step(simu.config.antSpeed/fps * simu.config.timeScale);
-      }, 1000/fps);
+        simulation.step(simulation.config.stepSize);
+      }, 1000/simulation.config.cps);
       requestAnimationId = requestAnimationFrame(animate);
       continueAnimating = true;
+      simulation.state = 1;
 
       break;
     case "pause":
       clearInterval(intervalId);
       cancelAnimationFrame(requestAnimationId);
       continueAnimating = false;
+      simulation.state = 0;
       break;
     case "rewind":
 
@@ -141,18 +143,18 @@ function simulationControl(action, value) {
 
       break;
     case "simulation_speed":
-      value = value / 20;
-      simu.config.timeScale = value;
+      value = value / 10;
+      simulation.config.stepSize = value;
       break;
     case "ants_number":
       value = value * 20;
-      if (value>simu.config.antsNumber) {// add ants
-        let toGenerate =  value - simu.config.antsNumber;
-        simu.generateAnts(toGenerate);
+      if (value>simulation.config.antsNumber) {// add ants
+        let toGenerate =  value - simulation.config.antsNumber;
+        simulation.generateAnts(toGenerate);
       } else {// delete ants
-        let antsNumber = simu.config.antsNumber;
+        let antsNumber = simulation.config.antsNumber;
         let toDelete = antsNumber - value;
-        simu.deleteRandomAnts(toDelete);
+        simulation.deleteRandomAnts(toDelete);
       }
       break;
   }
@@ -163,13 +165,14 @@ function simulationControl(action, value) {
     antsNumber = document.querySelector("#ants_number").value;
     timeScale = parseInt(simulationSpeed)/20;
     antsNumber = parseInt(antsNumber) * 20;
-    conf = new Configuration(timeScale, 1, antsNumber, 100, [100, 100],
-        20,  [canvas.offsetWidth - 20, canvas.offsetHeight - 20], [4, 8], 200);
-    simu = new Simulation(conf, null, null);
-    graph = new Graphics(canvas);
-    simu.generateAnts(simu.config.antsNumber);
-    graph.getCanvasReady();
-    graph.render(simu);
+    configurations = new Configurations(timeScale, antsNumber, 50, [500, 500], 20,
+        [canvas.offsetWidth - 20, canvas.offsetHeight - 20], [4, 6], 200, 50, 5);
+    simulation = new Simulation(configurations);
+    settings = new Settings(true, true, false); // TODO : add UI control
+    graphics = new Graphics(canvas, settings);
+    simulation.generateAnts(simulation.config.antsNumber);
+    graphics.getCanvasReady();
+    graphics.render(simulation);
     initialized = true;
   }
   return true;
