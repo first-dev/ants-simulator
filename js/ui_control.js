@@ -178,7 +178,7 @@ function simulationControl(action, value) {
     graphics = new Graphics(canvas, settings);
     graphics.getCanvasReady();
     configurations = new Configurations(timeScale, antsNumber, 50, [100, 150], 50,
-        [canvas.width-100, canvas.height-100], [2, 4], 200, 50, 5);
+        [canvas.width-100, canvas.height-100], [2, 4], 200, 50, 2);
     simulation = new Simulation(configurations);
     simulation.generateAnts(simulation.config.antsNumber);
     graphics.render(simulation);
