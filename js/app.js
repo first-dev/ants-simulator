@@ -10,18 +10,18 @@ class Graphics {
     this.canvas.width = this.canvas.offsetWidth;
     this.canvas.height = this.canvas.offsetHeight;
   }
+  // TODO : run on the gpu
   render(simulation) {
     let ctx = this.ctx;
     // Clear previous frame
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#0c0901";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Pheromones
     // create imageData object
-    let iData = ctx.createImageData(this.canvas.offsetWidth, this.canvas.offsetHeight);
+    let iData = ctx.createImageData(this.canvas.width, this.canvas.height);
     // set our buffer as source
-    iData.data.set(simulation.pheromonesBuffer);
+    let buffer = simulation.pheromonesBuffer;
+    iData.data.set(buffer);
     // update canvas with new data
     ctx.putImageData(iData, 0, 0);
 
@@ -32,7 +32,6 @@ class Graphics {
     let antWidth = simulation.config.antSize[0];
     let antHeight = simulation.config.antSize[1];
     let useImage = this.sittings.useImage;
-    ctx.fillStyle = "#5d1c12";
     function draw(x, y, w, h, isImage, image) {
       if (isImage) {
         ctx.drawImage(image, x, y, w, h);
@@ -45,6 +44,12 @@ class Graphics {
       // antXPos and antYPos are the positions of the ant at the top left corner
       antXPos = ant.x - antWidth/2;
       antYPos = ant.y - antHeight/2;
+
+      if (ant.type === TYPE_HOME_ANT){
+        ctx.fillStyle = "#5d1c12";
+      } else {
+        ctx.fillStyle = "#576b06";
+      }
       if (!this.sittings.accuratePosition) {
         // when the position values are integer the browser doesn't have to calculate the anti-aliasing
         antXPos = Math.floor(antXPos);
@@ -70,7 +75,7 @@ class Graphics {
     ctx.beginPath();
     ctx.strokeStyle = "White";
     ctx.arc(simulation.config.colonyPosition[0], simulation.config.colonyPosition[1], simulation.config.colonyRadius, 0, 2 * Math.PI);
-    ctx.fillStyle = "Red";
+    ctx.fillStyle = "Blue";
     ctx.fill();
     ctx.stroke();
 
@@ -82,7 +87,6 @@ class Graphics {
     ctx.fill();
     ctx.stroke();
 
-
   }
 
 }
@@ -93,4 +97,3 @@ class Settings {
     this.useImage = useImage;
   }
 }
-// TODO: fix changing window size issue
