@@ -110,9 +110,11 @@ function simulationControl(action, value) {
   }
   switch (action) {
     case "stop":
+      return false;
 
       break;
     case "reset":
+      return false;
 
       break;
     case "play":
@@ -161,7 +163,7 @@ function simulationControl(action, value) {
         } else {// delete ants
           let antsNumber = simulation.config.antsNumber;
           let toDelete = antsNumber - value;
-          simulation.deleteRandomAnts(toDelete);
+          simulation.deleteAnts(toDelete);
         }
       }
       break;

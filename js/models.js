@@ -33,27 +33,36 @@ class Simulation {
   }
   generateAnts(toGenerate) {
     for (let i = 0; i < toGenerate; i++) {
-      this.ants.push(this.generateRandomAnt());
+      this.ants.push(generateRandomAnt(this.config));
     }
     this.config.antsNumber = this.ants.length;
+    function generateRandomAnt(config) {
+      let angle = randomAngle();
+      function randomAngle() {
+        return Math.random() * 360;
+      }
+      function randomPosition(config, randAngle) { // generate a random position inside the colony (circle)
+        // we take sqrt of the random number to make sure the positions are spread more evenly across the circle
+        let r = Math.sqrt(Math.random()) * config.colonyRadius;
+        // we orient the ant based on its positions to make sure it's facing the outside
+        let theta = randAngle - 90;
+        // to cancel the orienting simply make theta = randomAngle()
+        let x = config.colonyPosition[0] + Math.cos(theta * Math.PI / 180) * r;
+        let y = config.colonyPosition[1] + Math.sin(theta * Math.PI / 180) * r;
+        return [x, y];
+      }
+      let randPos = randomPosition(config, angle);
+      return new Ant(TYPE_HOME_ANT, randPos[0], randPos[1], 1, angle, 1);
+    }
   }
-  generateRandomAnt() {
-    let angle = randomAngle();
-    function randomAngle() {
-      return Math.random() * 360;
+  deleteAnts(toDelete) {
+    let ants = this.ants;
+    let randomIndex;
+    for (let i = 0; i < toDelete; i++) {
+      randomIndex = Math.floor(Math.random() * this.config.antsNumber);
+      ants.splice(randomIndex, 1);
+      this.config.antsNumber--;
     }
-    function randomPosition(config, randAngle) { // generate a random position inside the colony (circle)
-      // we take sqrt of the random number to make sure the positions are spread more evenly across the circle
-      let r = Math.sqrt(Math.random()) * config.colonyRadius;
-      // we orient the ant based on its positions to make sure it's facing the outside
-      let theta = randAngle - 90;
-      // to cancel the orienting simply make theta = randomAngle()
-      let x = config.colonyPosition[0] + Math.cos(theta * Math.PI / 180) * r;
-      let y = config.colonyPosition[1] + Math.sin(theta * Math.PI / 180) * r;
-      return [x, y];
-    }
-    let randPos = randomPosition(this.config, angle);
-    return new Ant(TYPE_HOME_ANT, randPos[0], randPos[1], 1, angle, 1);
   }
   step(step) {
     let ant;
@@ -62,10 +71,39 @@ class Simulation {
     let correctedAngle;
     let cyclesPerUpdate = 1;
 
+    // add pheromones inside the colony and the food source
+    if (this.cycles % (cyclesPerUpdate*10) === 0){
+      // create off-screen canvas element
+      let offScreenCanvas = document.createElement('canvas');
+      let offScreenCtx = offScreenCanvas.getContext('2d');
+      offScreenCanvas.width = this.config.canvas.width;
+      offScreenCanvas.height = this.config.canvas.height;
+      // create imageData object
+      let offScreenImageData = offScreenCtx.createImageData(offScreenCanvas.width, offScreenCanvas.height);
+      // set our pheromonesBuffer as source
+      offScreenImageData.data.set(this.pheromonesBuffer);
+      // update canvas with new data
+      offScreenCtx.putImageData(offScreenImageData, 0, 0);
+      // Colony
+      offScreenCtx.beginPath();
+      offScreenCtx.strokeStyle = "White";
+      offScreenCtx.arc(this.config.colonyPosition[0], this.config.colonyPosition[1], this.config.colonyRadius, 0, 2 * Math.PI);
+      offScreenCtx.fillStyle = "#0000ff";
+      offScreenCtx.fill();
+      // Food
+      offScreenCtx.beginPath();
+      offScreenCtx.strokeStyle = "White";
+      offScreenCtx.arc(this.config.foodPosition[0], this.config.foodPosition[1], this.config.foodRadius, 0, 2 * Math.PI);
+      offScreenCtx.fillStyle = "#00ff00";
+      offScreenCtx.fill();
+      this.pheromonesBuffer = offScreenCtx.getImageData(0, 0, offScreenCanvas.width, offScreenCanvas.height).data;
+    }
+    // console.log("delay : "+(new Date().getTime()-st));
+
     // decay old pheromone
     if (this.cycles % cyclesPerUpdate === 0) {
       let offScreenIData = new ImageData(this.pheromonesBuffer, this.config.canvas.width, this.config.canvas.height);
-      imagedataFilters.brightness(offScreenIData, {amount: 0.98});// (0.98)^x
+      imagedataFilters.brightness(offScreenIData, {amount: 0.96});// (0.98)^x
       this.pheromonesBuffer = offScreenIData.data;
     }
 
@@ -90,11 +128,11 @@ class Simulation {
         // this.pheromonesBuffer[pos  ] = 0;      // R value [0, 255]
         if (ant.type === TYPE_FOOD_ANT){
           if (strength>this.pheromonesBuffer[pos+1])
-            this.pheromonesBuffer[pos+1] = strength;  // G value
+            this.pheromonesBuffer[pos+1] += strength;  // G value
         }
         if (ant.type === TYPE_HOME_ANT){
           if (strength>this.pheromonesBuffer[pos+2])
-            this.pheromonesBuffer[pos+2] = strength;  // B value
+            this.pheromonesBuffer[pos+2] += strength;  // B value
         }
         this.pheromonesBuffer[pos+3] = 255;    // alpha channel
       }
@@ -245,8 +283,8 @@ class Simulation {
         let maxPossibleValue = (255*255*amp*8);
         amp = amp/2;
 
-        for (let currentY = y-amp; currentY < y+amp ; currentY++) {
-          for (let currentX = x-amp; currentX < x+amp ; currentX++) {
+        for (let currentY = y-amp; currentY <= y+amp ; currentY++) {
+          for (let currentX = x-amp; currentX <= x+amp ; currentX++) {
             pos = (currentY * config.canvas.width + currentX) * 4;
             //r = buffer[pos  ] || 0;          // some R value [0, 255]
             g = buffer[pos+1] || 0;          // some G value
@@ -278,18 +316,64 @@ class Simulation {
         rightConcentration: rightConcentration
       };
     }
+    function mapConcentrations(buffer, ants, config) {
+      let result = new Uint8ClampedArray(config.canvas.width * config.canvas.height * 4);
+      // result.fill(4);
+      let mappingPositions = mappingPoints(ants);
+      const gpu = new GPU();
+      const kernel = gpu.createKernel(function(mappingPositions) {
+        let sum = 0
+        sum += this.thread.x;
+        return sum;
+      }).setOutput([mappingPositions.length*20*20]);
+      kernel(mappingPositions);
+
+      function mappingPoints(ants) {
+        let result = [];
+        let ant;
+        for (let i = 0; i < ants.length; i++) {
+          ant = ants[i];
+
+          let antAngle = ant.angle;
+
+          // correct the angle
+          antAngle -= 90; // TODO : why?
+
+          // width of sampling area
+          let amp =18;
+
+          // far the sampling areas are from the given position
+          let lookForward = 20;
+
+          // angle between sampling areas
+          let fovAngle = 120;
+
+          // angles of left and right areas
+          let leftAngle = antAngle - fovAngle/2;
+          let rightAngle = antAngle + fovAngle/2;
+
+          // make sure the angles are between 0 and 360
+          antAngle = angleModulo(antAngle);
+          leftAngle = angleModulo(leftAngle);
+          rightAngle = angleModulo(rightAngle);
+
+          // positions of sampling areas
+          let leftPos = [x + lookForward*Math.cos(toRadian(leftAngle)), y + lookForward*Math.sin(toRadian(leftAngle))];
+          let centerPos = [x + lookForward*Math.cos(toRadian(antAngle)), y + lookForward*Math.sin(toRadian(antAngle))];
+          let rightPos = [x + lookForward*Math.cos(toRadian(rightAngle)), y + lookForward*Math.sin(toRadian(rightAngle))];
+
+          // add positions to result
+          result.push(leftPos);
+          result.push(centerPos);
+          result.push(rightPos);
+        }
+        return result;
+      }
+
+    }
 
     this.cycles++;
     return true;
-  }
-  deleteRandomAnts(toDelete) {
-    let ants = this.ants;
-    let randomIndex;
-    for (let i = 0; i < toDelete; i++) {
-      randomIndex = Math.floor(Math.random() * this.config.antsNumber);
-      ants.splice(randomIndex, 1);
-      this.config.antsNumber--;
-    }
   }
 }
 
