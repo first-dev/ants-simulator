@@ -2,22 +2,22 @@ const TYPE_HOME_ANT = 1;
 const TYPE_FOOD_ANT = 0;
 const DEFAULT_POSITION = [0, 0];
 const DEFAULT_ANGLE = 0;
-const FULL_STAMINA = 1.00;
-const DEFAULT_TIME_SCALE = 1;
+const DEFAULT_STAMINA = 1.00;
 const DEFAULT_ANTS_NUMBER = 1000;
 const DEFAULT_COLONY_RADIUS = 100;
 const DEFAULT_FOOD_RADIUS = 20;
-const ANT_SIZE = [4, 6];
-const ANT_SPEED = 1;
-let DEFAULT_CPS = 50;
-let DEFAULT_STEP_SIZE = 1;
+const DEFAULT_CPS = 50;
+const DEFAULT_STEP_SIZE = 1;
+const DEFAULT_PHEROMONES_FADE = 0.98;
+const DEFAULT_STRENGTH_DEGRADATION = 0.99;
+const DEFAULT_CYCLES_PER_UPDATE = 2;
 
 class Ant {
   constructor(type, x, y, stamina, angle, pheromoneStrength) {
     this.type = type || TYPE_HOME_ANT;
     this.x = x || DEFAULT_POSITION[0];
     this.y = y || DEFAULT_POSITION[1];
-    this.stamina = stamina || FULL_STAMINA;
+    this.stamina = stamina || DEFAULT_STAMINA;
     this.angle = angle || DEFAULT_ANGLE;
     this.pheromoneStrength = pheromoneStrength || 1;
   }
@@ -30,6 +30,24 @@ class Simulation {
     this.cycles = 0;
     this.ants = [];
     this.pheromonesBuffer = new Uint8ClampedArray(config.canvas.width * config.canvas.height * 4);
+    // make the background black
+    {
+      // create off-screen canvas element
+      let offScreenCanvas = document.createElement('canvas');
+      let offScreenCtx = offScreenCanvas.getContext('2d');
+      offScreenCanvas.width = this.config.canvas.width;
+      offScreenCanvas.height = this.config.canvas.height;
+      // create imageData object
+      let offScreenImageData = offScreenCtx.createImageData(offScreenCanvas.width, offScreenCanvas.height);
+      // set our pheromonesBuffer as source
+      offScreenImageData.data.set(this.pheromonesBuffer);
+      // update canvas with new data
+      offScreenCtx.putImageData(offScreenImageData, 0, 0);
+      // fill with black
+      offScreenCtx.fillStyle = "#000000";
+      offScreenCtx.fillRect(0, 0, offScreenCanvas.width, offScreenCanvas.height);
+      this.pheromonesBuffer = offScreenCtx.getImageData(0, 0, offScreenCanvas.width, offScreenCanvas.height).data;
+    }
   }
   generateAnts(toGenerate) {
     for (let i = 0; i < toGenerate; i++) {
@@ -64,12 +82,12 @@ class Simulation {
       this.config.antsNumber--;
     }
   }
-  step(step) {
+  step() {
     let ant;
     let xPos;
     let yPos;
     let correctedAngle;
-    let cyclesPerUpdate = 1;
+    let cyclesPerUpdate = this.config.cyclesPerUpdate;
 
     // add pheromones inside the colony and the food source
     if (this.cycles % (cyclesPerUpdate*10) === 0){
@@ -98,12 +116,11 @@ class Simulation {
       offScreenCtx.fill();
       this.pheromonesBuffer = offScreenCtx.getImageData(0, 0, offScreenCanvas.width, offScreenCanvas.height).data;
     }
-    // console.log("delay : "+(new Date().getTime()-st));
 
     // decay old pheromone
     if (this.cycles % cyclesPerUpdate === 0) {
       let offScreenIData = new ImageData(this.pheromonesBuffer, this.config.canvas.width, this.config.canvas.height);
-      imagedataFilters.brightness(offScreenIData, {amount: 0.96});// (0.98)^x
+      imagedataFilters.brightness(offScreenIData, {amount: this.config.pheromonesFade});// (x)^t
       this.pheromonesBuffer = offScreenIData.data;
     }
 
@@ -115,7 +132,7 @@ class Simulation {
 
       // ants produce weaker pheromones each step
       if (this.cycles % cyclesPerUpdate === 0) {
-        ant.pheromoneStrength *= 254 / 255;
+        ant.pheromoneStrength *= this.config.strengthDegradation;
       }
 
       // adding pheromone
@@ -137,9 +154,9 @@ class Simulation {
         this.pheromonesBuffer[pos+3] = 255;    // alpha channel
       }
 
-      // each step the ant will make a little rotate randomly
+      // each step the ant will rotate randomly
       if (this.cycles % cyclesPerUpdate === 0) {
-        ant.angle += (Math.random()*2-1) * 5;
+        ant.angle += (Math.random()*2-1) * 10;
       }
 
       // ants rotate based on the concentration of pheromones in front of it
@@ -171,8 +188,8 @@ class Simulation {
       // we substrate 90 degrees because the canvas 0 angle is correspond to 90 degrees in euclidean space
       correctedAngle = angleModulo(ant.angle - 90);
       // then we calculate the projection of the step on X an Y axes
-      xPos += step * Math.cos(correctedAngle * Math.PI / 180);
-      yPos += step * Math.sin(correctedAngle * Math.PI / 180);
+      xPos += this.config.stepSize * Math.cos(correctedAngle * Math.PI / 180);
+      yPos += this.config.stepSize * Math.sin(correctedAngle * Math.PI / 180);
 
       // check if the new X position is inside the terrain
       while (!isXInsideTerrain(this.config ,xPos)){
@@ -180,7 +197,7 @@ class Simulation {
         ant.angle = -ant.angle;
         correctedAngle = ant.angle - 90;
         xPos = ant.x;
-        xPos += step * Math.cos(correctedAngle * Math.PI / 180);
+        xPos += this.config.stepSize * Math.cos(correctedAngle * Math.PI / 180);
         // when an ant hits the wall it produce weaker pheromones
         ant.pheromoneStrength /= 8;
       }
@@ -189,7 +206,7 @@ class Simulation {
         ant.angle = 180-ant.angle;
         correctedAngle = ant.angle - 90;
         yPos = ant.y;
-        yPos += step * Math.sin(correctedAngle * Math.PI / 180);
+        yPos += this.config.stepSize * Math.sin(correctedAngle * Math.PI / 180);
         // when an ant hits the wall it produce weaker pheromones
         ant.pheromoneStrength /= 8;
       }
@@ -240,7 +257,7 @@ class Simulation {
       // calculate the concentration of pheromones in 3 areas in front of the ant
 
       // correct the angle
-      antAngle -= 90; // TODO : why?
+      antAngle -= 90; // why?
 
       // width of sampling area
       let amp =18;
@@ -316,6 +333,8 @@ class Simulation {
         rightConcentration: rightConcentration
       };
     }
+
+    /*
     function mapConcentrations(buffer, ants, config) {
       let result = new Uint8ClampedArray(config.canvas.width * config.canvas.height * 4);
       // result.fill(4);
@@ -337,7 +356,7 @@ class Simulation {
           let antAngle = ant.angle;
 
           // correct the angle
-          antAngle -= 90; // TODO : why?
+          antAngle -= 90;
 
           // width of sampling area
           let amp =18;
@@ -371,6 +390,7 @@ class Simulation {
       }
 
     }
+     */
 
     this.cycles++;
     return true;
@@ -378,19 +398,18 @@ class Simulation {
 }
 
 class Configurations {
-  // TODO: add multi foods and colony support
-  constructor(timeScale, antsNumber, colonyRadius, colonyPosition, foodRadius,
-              foodPosition, antSize, antSpeed, cps, stepSize) {
-    this.canvas = document.querySelector("#canvas");
-    this.timeScale = timeScale || DEFAULT_TIME_SCALE;
+  constructor(canvas, antsNumber, colonyRadius, colonyPosition, foodRadius,
+              foodPosition, cps, stepSize, pheromonesFade, strengthDegradation, cyclesPerUpdate) {
+    this.canvas = canvas;
     this.antsNumber = antsNumber || DEFAULT_ANTS_NUMBER;
     this.colonyRadius = colonyRadius || DEFAULT_COLONY_RADIUS;
     this.colonyPosition = colonyPosition || [colonyRadius, colonyRadius]; //top left of screen
     this.foodRadius = foodRadius || DEFAULT_FOOD_RADIUS;
     this.foodPosition = foodPosition || [this.canvas.width - foodRadius, this.canvas.height - foodRadius]; //bottom right of screen
-    this.antSize = antSize || ANT_SIZE;
-    this.antSpeed = antSpeed || ANT_SPEED;
     this.cps = cps || DEFAULT_CPS;
     this.stepSize = stepSize || DEFAULT_STEP_SIZE;
+    this.pheromonesFade = pheromonesFade || DEFAULT_PHEROMONES_FADE;
+    this.strengthDegradation = strengthDegradation || DEFAULT_STRENGTH_DEGRADATION;
+    this.cyclesPerUpdate = cyclesPerUpdate || DEFAULT_CYCLES_PER_UPDATE;
   }
 }

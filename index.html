@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8">
-  <title>Ants Simulation</title>
+  <title>Ants Simulator</title>
   <link rel="stylesheet" href="styles/w3.css" />
   <link href="styles/style.css" rel="stylesheet" />
   <script src="js/gpu-browser.min.js" type="text/javascript"></script>
@@ -12,7 +12,6 @@
   <script src="js/app.js" type="text/javascript"></script>
   <script src="js/imagedata-filters.min.js" type="text/javascript"></script>
 </head>
-
 <body>
   <div class="simulation-container">
     <div class="graph-container">
@@ -20,13 +19,16 @@
         Ants Simulation
       </div>
       <div class="screen-container">
-        <div class="statistics">
-          <span class="fpsCount">fps : <span id="fpsCount">0</span></span>
-          <span class="antsCount">| ants alive : <span id="antsCount">0</span></span>
-        </div>
-        <div class="canvasContainer">
-          <canvas class="screen" id="pheromonesCanvas">Your browser doesn't support HTML canvas</canvas>
-          <canvas class="screen overlay" id="canvas">Your browser doesn't support HTML canvas</canvas>
+        <div class="screen-sub-container">
+          <div class="canvasContainer">
+            <canvas class="screen overlay" id="canvas">Your browser doesn't support HTML canvas</canvas>
+          </div>
+          <div class="statistics">
+            <span class="cpsCounter">cps : <span id="cpsCount">0</span></span>
+            <span class="fpsCounter">fps : <span id="fpsCount">0</span></span>
+            <span class="antsCounter">ants : <span id="antsCount">0</span></span>
+            <span class="cyclesCounter">cycles : <span id="cyclesCount">0</span></span>
+          </div>
         </div>
       </div>
     </div>
@@ -56,17 +58,54 @@
         </div>
         <div class="sliders">
           <div>
-            <div class="slider-title">
-              Simulation speed:
-            </div>
-            <label for="simulation_speed"></label><input type="range" id="simulation_speed" min="1" max="100" value="50" class="slider" data-action="simulation_speed" oninput="slider(this)">
+            <label for="simulation_speed" class="controller-title">Simulation speed:</label>
+            <input type="range" id="simulation_speed" min="1" max="100" value="10" class="slider" data-action="simulation_speed" oninput="slider(this)">
           </div>
           <div>
-            <div class="slider-title">
-              Ants number:
-            </div>
-            <label for="ants_number"></label><input type="range" id="ants_number" min="1" max="100" value="50" class="slider" data-action="ants_number" oninput="slider(this)">
+            <label for="ants_number" class="controller-title">Ants number:</label>
+            <input type="range" id="ants_number" min="1" max="100" value="25" class="slider" data-action="ants_number" oninput="slider(this)">
           </div>
+          <div>
+            <label for="pheromones_fade" class="controller-title">Pheromones fade :</label>
+            <input type="range" id="pheromones_fade" min="1" max="100" value="20" class="slider" data-action="pheromones_fade" oninput="slider(this)">
+          </div>
+          <div>
+            <label for="strength_degradation" class="controller-title">Strength degradation :</label>
+            <input type="range" id="strength_degradation" min="1" max="100" value="10" class="slider" data-action="strength_degradation" oninput="slider(this)">
+          </div>
+          <div>
+            <label for="cycles_per_update" class="controller-title">Cycles per update :</label>
+            <input type="range" id="cycles_per_update" min="1" max="10" value="2" class="slider" data-action="cycles_per_update" oninput="slider(this)">
+          </div>
+          <div>
+            <label for="step_size" class="controller-title">Step size :</label>
+            <input type="range" id="step_size" min="1" max="10" value="2" class="slider" data-action="step_size" oninput="slider(this)">
+          </div>
+          <div class="controls_break"></div>
+          <div>
+            <label for="brightness" class="controller-title">Brightness :</label>
+            <input type="range" id="brightness" min="0" max="100" value="20" class="slider" data-action="brightness" oninput="slider(this)">
+          </div>
+          <div>
+            <label for="accurate_position" class="controller-title">Accurate position :</label>
+            <label class="switch">
+              <input type="checkbox" id="accurate_position" checked data-action="accurate_position" onclick="checkbox(this)">
+              <span class="slider-checkbox round"></span>
+            </label>
+          </div>
+          <div>
+            <label for="enabled_rotation" class="controller-title">Enabled rotation :</label>
+            <label class="switch">
+              <input type="checkbox" id="enabled_rotation" checked data-action="enabled_rotation" onclick="checkbox(this)">
+              <span class="slider-checkbox round"></span>
+            </label>
+          </div>
+          <label for="use_image" class="controller-title">Use ant image :</label>
+          <label class="switch">
+            <input type="checkbox" id="use_image" data-action="use_image" onclick="checkbox(this)">
+            <span class="slider-checkbox round"></span>
+          </label>
+        </div>
         </div>
       </div>
     </div>
