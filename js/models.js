@@ -88,6 +88,8 @@ class Simulation {
     let yPos;
     let correctedAngle;
     let cyclesPerUpdate = this.config.cyclesPerUpdate;
+    let samplingMap;
+    let concentrationsMap;
 
     // add pheromones inside the colony and the food source
     if (this.cycles % (cyclesPerUpdate*10) === 0){
@@ -154,14 +156,14 @@ class Simulation {
         this.pheromonesBuffer[pos+3] = 255;    // alpha channel
       }
 
-      // each step the ant will rotate randomly
+      // each step the ant will make a small rotation randomly
       if (this.cycles % cyclesPerUpdate === 0) {
         ant.angle += (Math.random()*2-1) * 10;
       }
 
       // ants rotate based on the concentration of pheromones in front of it
       if (this.cycles % cyclesPerUpdate === 0) {
-        let concentrations = concentrationInFront(ant.x, ant.y, ant.angle, this.pheromonesBuffer, this.config);
+        let concentrations = concentrationInFront(ant, this.pheromonesBuffer, this.config);
         let rotationAngle = 60;
         let LC;
         let MC;
@@ -233,6 +235,7 @@ class Simulation {
       ant.angle = angleModulo(ant.angle);
     }
 
+    // functions
     function isXInsideTerrain(config, x) {
       return (x > 0 && x < config.canvas.width);
     }
@@ -253,17 +256,28 @@ class Simulation {
     function angleModulo(angle) {
       return (angle%360 + 360) % 360;
     }
-    function concentrationInFront(x, y, antAngle, buffer, config) {
-      // calculate the concentration of pheromones in 3 areas in front of the ant
+    function get1dPosition(x, y, width, range) {
+      return (y * width + x) * range;
+    }
+    function get2dPosition(pos, width, range) {
+      let y = Math.floor(pos/(range*width));
+      let x = pos/range -y*width;
+      return [x, y];
+    }
+    /**
+     * Calculate the sampling positions in front of the ant
+     * @param {Ant} ant
+     * @returns {Object} - the 3 sampling positions in front of the ant (leftPos, middlePos, and rightPos)
+     */
+    function getAntSamplingPositions(ant){
+      let x = ant.x;
+      let y = ant.y;
 
       // correct the angle
-      antAngle -= 90; // why?
-
-      // width of sampling area
-      let amp =18;
+      let antAngle = ant.angle-90; // why?
 
       // far the sampling areas are from the given position
-      let lookForward = 20;
+      let forwardDistance = 20;
 
       // angle between sampling areas
       let fovAngle = 120;
@@ -278,54 +292,110 @@ class Simulation {
       rightAngle = angleModulo(rightAngle);
 
       // positions of sampling areas
-      let leftPos = [x + lookForward*Math.cos(toRadian(leftAngle)), y + lookForward*Math.sin(toRadian(leftAngle))];
-      let centerPos = [x + lookForward*Math.cos(toRadian(antAngle)), y + lookForward*Math.sin(toRadian(antAngle))];
-      let rightPos = [x + lookForward*Math.cos(toRadian(rightAngle)), y + lookForward*Math.sin(toRadian(rightAngle))];
+      let leftPos = {
+        x:x + forwardDistance*Math.cos(toRadian(leftAngle)),
+        y:y + forwardDistance*Math.sin(toRadian(leftAngle))
+      };
+      let middlePos = {
+        x:x + forwardDistance*Math.cos(toRadian(antAngle)),
+        y:y + forwardDistance*Math.sin(toRadian(antAngle))
+      };
+      let rightPos = {
+        x:x + forwardDistance*Math.cos(toRadian(rightAngle)),
+        y:y + forwardDistance*Math.sin(toRadian(rightAngle))
+      };
+      return {
+        leftPos: leftPos,
+        middlePos: middlePos,
+        rightPos: rightPos
+      }
+    }
+    /**
+     * Calculate all sampling coordinates for the given ants
+     * @param ants {Array<Ant>} Array of ants
+     * @returns {Array<{x: number, y: number}>} Array of sampling coordinates
+     */
+    function getSamplingMap(ants) {
+      // returns positions of all sampling areas in a map
+      let map = [];
+      for (let i = 0; i < ants.length; i++) {
+        let samplingPosition = getAntSamplingPositions(ants[i]);
+        map.push(samplingPosition.leftPos);
+        map.push(samplingPosition.middlePos);
+        map.push(samplingPosition.rightPos);
+      }
+      return map;
+    }
+    /**
+     * Calculate pheromones concentrations of the given sampling map on the **GPU**
+     * @param samplingMap {Array<{x: number, y: number}>} Array of sampling coordinates
+     * @param buffer {Uint8ClampedArray} Pheromones image
+     * @param width {number} width of sampling areas
+     * @returns {Array<{homeConcentration, foodConcentration}>} concentrations map
+     */
+    function getConcentrationMap(samplingMap, buffer, width) {
+      let samplingXPos = [];
+      let samplingYPos = [];
+      for (let i = 0; i < samplingMap.length; i++) {
+        samplingXPos.push(samplingMap[i].x);
+        samplingYPos.push(samplingMap[i].y);
+      }
+      const gpu = new GPU();
+      const kernel = gpu.createKernel(function(samplingXPos, samplingYPos, buffer, width) {
+        let x = samplingXPos[this.thread.x];
+        let y = samplingYPos[this.thread.x];
 
-      // concentration of each area
-      let leftConcentration = pheromoneConcentration(leftPos[0], leftPos[1], amp, buffer, config);
-      let middleConcentration = pheromoneConcentration(centerPos[0], centerPos[1], amp, buffer, config);
-      let rightConcentration = pheromoneConcentration(rightPos[0], rightPos[1], amp, buffer, config);
-
-
-      function pheromoneConcentration(x, y, amp, buffer, config) {
-        // TODO : run on gpu
-        x = Math.floor(x);
-        y = Math.floor(y);
-        amp = Math.floor(amp);
+        let amp = 18;
         let homeConcentration = 0;
         let foodConcentration = 0;
-        let r,g,b,a;
-        let pos;
-        let maxPossibleValue = (255*255*amp*8);
+        let g = 0;
+        let b = 0;
+        let a = 0;
+        let pos = 0;
+        let maxPossibleValue = (255*255*amp*amp*8);
         amp = amp/2;
-
         for (let currentY = y-amp; currentY <= y+amp ; currentY++) {
           for (let currentX = x-amp; currentX <= x+amp ; currentX++) {
-            pos = (currentY * config.canvas.width + currentX) * 4;
-            //r = buffer[pos  ] || 0;          // some R value [0, 255]
-            g = buffer[pos+1] || 0;          // some G value
-            b = buffer[pos+2] || 0;          // some B value
-            a = buffer[pos+3] || 0;          // set alpha channel
+            pos = (currentY * width + currentX) * 4;
+            g = buffer[pos+1];          // some G value
+            b = buffer[pos+2];          // some B value
+            a = buffer[pos+3];          // set alpha channel
             homeConcentration += b*a;
             foodConcentration += g*a;
           }
         }
-
-
         // scale to a value between 0 and 1
         homeConcentration = homeConcentration/maxPossibleValue;
         foodConcentration = foodConcentration/maxPossibleValue;
 
-        //
-        homeConcentration = Math.pow(homeConcentration, 1/4);
-        foodConcentration = Math.pow(foodConcentration, 1/4);
+        return [homeConcentration, foodConcentration];
+      })
+          .setOutput([samplingMap.length]);
+      return kernel(samplingXPos, samplingYPos, buffer, width);
+    }
+    /**
+     * Calculate the concentrations of home and food pheromones in 3 areas in front of the ant
+     * @param ant {Ant}
+     * @param buffer {Uint8ClampedArray} Pheromones image
+     * @param config {Configurations} Simulation configurations
+     * @returns {Object} - Concentrations {leftConcentration, middleConcentration, rightConcentration}
+     */
+    function concentrationInFront(ant, buffer, config) {
+      // calculate the concentration of pheromones in 3 areas in front of the ant
 
-        return {
-          homeConcentration : homeConcentration,
-          foodConcentration : foodConcentration
-        }
-      }
+      // width of sampling area
+      let amp =18;
+
+      // positions of sampling areas
+      let samplingPositions = getAntSamplingPositions(ant);
+      let leftPos = samplingPositions.leftPos;
+      let middlePos = samplingPositions.middlePos;
+      let rightPos = samplingPositions.rightPos;
+
+      // concentration of each area
+      let leftConcentration = pheromoneConcentration(leftPos.x, leftPos.y, amp, buffer, config);
+      let middleConcentration = pheromoneConcentration(middlePos.x, middlePos.y, amp, buffer, config);
+      let rightConcentration = pheromoneConcentration(rightPos.x, rightPos.y, amp, buffer, config);
 
       return {
         leftConcentration: leftConcentration,
@@ -333,65 +403,56 @@ class Simulation {
         rightConcentration: rightConcentration
       };
     }
+    /**
+     * Calculate home and food pheromone concentrations in the given area (square)
+     * @param x {number} X coordinate of the area
+     * @param y {number} Y coordinate of the area
+     * @param amp {number} Width of the area
+     * @param buffer {Uint8ClampedArray} Pheromones image
+     * @param config {Configurations}
+     * @returns {{foodConcentration: number, homeConcentration: number}}
+     */
+    function pheromoneConcentration(x, y, amp, buffer, config) {
+      // TODO : run on gpu
+      x = Math.floor(x);
+      y = Math.floor(y);
+      amp = Math.floor(amp);
+      let homeConcentration = 0;
+      let foodConcentration = 0;
+      let r,g,b,a;
+      let pos;
+      let maxPossibleValue = (255*255*amp*amp*8);
+      amp = amp/2;
 
-    /*
-    function mapConcentrations(buffer, ants, config) {
-      let result = new Uint8ClampedArray(config.canvas.width * config.canvas.height * 4);
-      // result.fill(4);
-      let mappingPositions = mappingPoints(ants);
-      const gpu = new GPU();
-      const kernel = gpu.createKernel(function(mappingPositions) {
-        let sum = 0
-        sum += this.thread.x;
-        return sum;
-      }).setOutput([mappingPositions.length*20*20]);
-      kernel(mappingPositions);
-
-      function mappingPoints(ants) {
-        let result = [];
-        let ant;
-        for (let i = 0; i < ants.length; i++) {
-          ant = ants[i];
-
-          let antAngle = ant.angle;
-
-          // correct the angle
-          antAngle -= 90;
-
-          // width of sampling area
-          let amp =18;
-
-          // far the sampling areas are from the given position
-          let lookForward = 20;
-
-          // angle between sampling areas
-          let fovAngle = 120;
-
-          // angles of left and right areas
-          let leftAngle = antAngle - fovAngle/2;
-          let rightAngle = antAngle + fovAngle/2;
-
-          // make sure the angles are between 0 and 360
-          antAngle = angleModulo(antAngle);
-          leftAngle = angleModulo(leftAngle);
-          rightAngle = angleModulo(rightAngle);
-
-          // positions of sampling areas
-          let leftPos = [x + lookForward*Math.cos(toRadian(leftAngle)), y + lookForward*Math.sin(toRadian(leftAngle))];
-          let centerPos = [x + lookForward*Math.cos(toRadian(antAngle)), y + lookForward*Math.sin(toRadian(antAngle))];
-          let rightPos = [x + lookForward*Math.cos(toRadian(rightAngle)), y + lookForward*Math.sin(toRadian(rightAngle))];
-
-          // add positions to result
-          result.push(leftPos);
-          result.push(centerPos);
-          result.push(rightPos);
+      for (let currentY = y-amp; currentY <= y+amp ; currentY++) {
+        for (let currentX = x-amp; currentX <= x+amp ; currentX++) {
+          pos = get1dPosition(currentX, currentY, config.canvas.width, 4);
+          //r = buffer[pos  ] || 0;          // some R value [0, 255]
+          g = buffer[pos+1] || 0;          // some G value
+          b = buffer[pos+2] || 0;          // some B value
+          a = buffer[pos+3] || 0;          // set alpha channel
+          homeConcentration += b*a;
+          foodConcentration += g*a;
         }
-        return result;
       }
 
-    }
-     */
 
+      // scale to a value between 0 and 1
+      homeConcentration = homeConcentration/maxPossibleValue;
+      foodConcentration = foodConcentration/maxPossibleValue;
+
+      //
+      homeConcentration = Math.pow(homeConcentration, 1/4);
+      foodConcentration = Math.pow(foodConcentration, 1/4);
+
+      return {
+        homeConcentration : homeConcentration,
+        foodConcentration : foodConcentration
+      }
+    }
+
+
+    // finish
     this.cycles++;
     return true;
   }
