@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/ants-simulation.iml" filepath="$PROJECT_DIR$/.idea/ants-simulation.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ants-simulator.iml" filepath="$PROJECT_DIR$/.idea/ants-simulator.iml" />
     </modules>
   </component>
 </project>
